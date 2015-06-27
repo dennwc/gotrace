@@ -203,12 +203,15 @@ func pointFromArr(c *[3]C.potrace_dpoint_t, i, j int) Point {
 	return Point{float64(p[j].x), float64(p[j].y)}
 }
 
-func WriteSvg(w io.Writer, rect image.Rectangle, paths []Path) error {
+func WriteSvg(w io.Writer, rect image.Rectangle, paths []Path, color string) error {
+	if color == "" {
+		color = "#000000"
+	}
 	fmt.Fprintf(w, `<?xml version="1.0" standalone="no"?>
 <!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 20010904//EN" "http://www.w3.org/TR/2001/REC-SVG-20010904/DTD/svg10.dtd">
 <svg version="1.0" xmlns="http://www.w3.org/2000/svg" width="%dpt" height="%dpt" viewBox="0 0 %d %d" preserveAspectRatio="xMidYMid meet">
-<g transform="translate(0.0,%d.0) scale(1.0,-1.0)" fill="#000000" stroke="none">%s`,
-		rect.Dx(), rect.Dy(), rect.Dx(), rect.Dy(), rect.Dy(), "\n")
+<g fill="%s" stroke="none">%s`,
+		rect.Dx(), rect.Dy(), rect.Dx(), rect.Dy(), color, "\n")
 	for i, p := range paths {
 		if p.Sign > 0 {
 			fmt.Fprint(w, `<path d="`)
