@@ -1,5 +1,5 @@
 # GoTrace
-Pure Go implementation of [Potrace](http://potrace.sourceforge.net/potracelib.pdf) vectorization library.
+Go bindings for [Potrace](http://potrace.sourceforge.net/potracelib.pdf) vectorization library.
 Supports simple SVG output generation.
 
 **Original image**
@@ -12,22 +12,23 @@ Supports simple SVG output generation.
 
 # Installation
 ```
-go get github.com/dennwc/gotrace
+apt-get install libpotrace-dev
+go get github.com/dennwc/gotrace/bindings
 ```
 
 # Usage
 Process image, generate SVG:
 ```Go
-paths, _ := gotrace.Trace(img, nil)
-gotrace.WriteSvg(file, img.Bounds(), paths, "")
+paths, _ := gotraceb.Trace(img, nil)
+gotraceb.WriteSvg(file, img.Bounds(), paths, "")
 ```
 
 Custom threshold function:
 ```Go
-params := gotrace.Defaults()
+params := gotraceb.Defaults()
 params.ThresholdFunc = func(c color.Color) bool {
   r,g,b,_ := c.RGBA()
   return r+g+b > 128
 }
-paths, _ := gotrace.Trace(img, params)
+paths, _ := gotraceb.Trace(img, params)
 ```

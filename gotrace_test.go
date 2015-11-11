@@ -3,15 +3,11 @@ package gotrace
 import (
 	"image"
 	"image/color"
+	"math/rand"
 	"testing"
-	"unsafe"
 )
 
-func TestWordSize(t *testing.T) {
-	if uintptr(wordSize) != unsafe.Sizeof(uint(0))*8 {
-		t.Fatalf("%d vs %s", wordSize, unsafe.Sizeof(uint(0))*8)
-	}
-}
+func TestBuild(t *testing.T) {}
 
 func genTestBitmap() image.Image {
 	img := image.NewRGBA(image.Rect(0, 0, 12, 12))
@@ -27,32 +23,51 @@ func genTestBitmap() image.Image {
 	return img
 }
 
-func TestPotraceBitmap(t *testing.T) {
-	data := imageToBitmap(genTestBitmap(), ThresholdAplha)
-	if len(data) != 12 {
-		t.Fatal("wrong size:", len(data))
-	}
-	start := uint(0x00100000)
-	if wordSize == 64 {
-		start = uint(0x0010000000000000)
-	}
-	last := start
-	for i := range data {
-		if data[i] != last {
-			t.Fatalf("wrong representation (%d): 0x%016x vs 0x%016x", i, data[i], last)
+func TestBitmap(t *testing.T) {
+	bm := NewBitmap(1543, 1234)
+	i := 0
+	check := make([]bool, bm.W*bm.H)
+	for y := 0; y < bm.H; y++ {
+		for x := 0; x < bm.W; x++ {
+			v := rand.Intn(10) > 4
+			check[i] = v
+			bm.Set(x, y, v)
+			i++
 		}
-		last = (last << 1) | start
+	}
+	i = 0
+	for y := 0; y < bm.H; y++ {
+		for x := 0; x < bm.W; x++ {
+			if check[i] != bm.Get(x, y) {
+				t.Fatal("failed")
+			}
+			i++
+		}
 	}
 }
 
 func TestTrace(t *testing.T) {
-	img := genTestBitmap()
-	paths, err := Trace(img, nil)
+	bm := NewBitmapFromImage(genTestBitmap(), ThresholdAlpha)
+	paths, err := Trace(bm, nil)
 	if err != nil {
 		t.Fatal(err)
 	} else if len(paths) != 1 {
 		t.Fatal("wrong paths count:", len(paths))
 	} else if paths[0].Sign != +1 {
 		t.Fatal("wrong sign in path:", paths[0].Sign)
+	} else if paths[0].Area != 78 {
+		t.Fatal("wrong area of path:", paths[0].Area)
+	}
+}
+
+func BenchmarkBitmap(b *testing.B) {
+	bm := NewBitmap(1543, 1234)
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		x, y, v := i%bm.W, i%bm.H, i%2 == 0
+		for j := 0; j < 1000; j++ {
+			bm.Set(x, y, v)
+			bm.Get(x, y)
+		}
 	}
 }

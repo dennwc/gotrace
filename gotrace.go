@@ -1,14 +1,6 @@
-// Package gotrace provides bindings for potracelib - bitmap to vector graphics converter.
+// Package gotrace is a pure Go implementation of potrace vectorization library.
 // More info at http://potrace.sourceforge.net/potracelib.pdf
 package gotrace
-
-// #cgo LDFLAGS: -lpotrace
-// #include <stdlib.h>
-// #include <potracelib.h>
-// int wordSize() { return sizeof(potrace_word); }
-// potrace_param_t* newParams() { return malloc(sizeof(potrace_param_t)); }
-// potrace_bitmap_t* newBitmap() { return malloc(sizeof(potrace_bitmap_t)); }
-import "C"
 
 import (
 	"bytes"
@@ -16,38 +8,44 @@ import (
 	"image"
 	"image/color"
 	"io"
-	"unsafe"
 )
 
-var wordSize = int(C.wordSize()) * 8
+const (
+	TypeBezier = SegmType(1)
+	TypeCorner = SegmType(2)
+)
+
+type SegmType int
+
+const (
+	TurnBlack    = TurnPolicy(0)
+	TurnWhite    = TurnPolicy(1)
+	TurnLeft     = TurnPolicy(2)
+	TurnRight    = TurnPolicy(3)
+	TurnMinority = TurnPolicy(4)
+	TurnMajority = TurnPolicy(5)
+	TurnRandom   = TurnPolicy(6)
+)
 
 type TurnPolicy int
 
-const (
-	TurnPolicyBlack    = TurnPolicy(C.POTRACE_TURNPOLICY_BLACK)
-	TurnPolicyWhite    = TurnPolicy(C.POTRACE_TURNPOLICY_WHITE)
-	TurnPolicyLeft     = TurnPolicy(C.POTRACE_TURNPOLICY_LEFT)
-	TurnPolicyRight    = TurnPolicy(C.POTRACE_TURNPOLICY_RIGHT)
-	TurnPolicyMinority = TurnPolicy(C.POTRACE_TURNPOLICY_MINORITY)
-	TurnPolicyMajority = TurnPolicy(C.POTRACE_TURNPOLICY_MAJORITY)
-	TurnPolicyRandom   = TurnPolicy(C.POTRACE_TURNPOLICY_RANDOM)
-)
+type Point struct {
+	X, Y float64
+}
 
-type SegType int
-
-const (
-	Bezier = SegType(C.POTRACE_CURVETO)
-	Corner = SegType(C.POTRACE_CORNER)
-)
-
-func Version() string {
-	return C.GoString(C.potrace_version())
+type Segment struct {
+	Type SegmType
+	Pnt  [3]Point
 }
 
 type Path struct {
-	Area  int // enclosed area
-	Sign  int // +1 or -1
+	Area  int
+	Sign  int
 	Curve []Segment
+
+	Childs []Path
+
+	priv *privPath
 }
 
 func (p Path) ToSvgPath() string {
@@ -59,148 +57,62 @@ func (p Path) ToSvgPath() string {
 	buf := bytes.NewBuffer(nil)
 	for i, p := range c {
 		if i == 0 {
-			fmt.Fprintf(buf, "M%f,%f ", c[l].Pt[2][0], c[l].Pt[2][1]) // end point == start point
+			fmt.Fprintf(buf, "M%f,%f ", c[l].Pnt[2].X, c[l].Pnt[2].Y) // end point == start point
 		}
-		if p.Type == Corner {
-			fmt.Fprintf(buf, "L%f,%f", p.Pt[1][0], p.Pt[1][1]) // no last point for now - may be closed with Z
-		} else if p.Type == Bezier {
-			fmt.Fprintf(buf, "C%f,%f %f,%f %f,%f", p.Pt[0][0], p.Pt[0][1], p.Pt[1][0], p.Pt[1][1], p.Pt[2][0], p.Pt[2][1])
+		if p.Type == TypeCorner {
+			fmt.Fprintf(buf, "L%f,%f", p.Pnt[1].X, p.Pnt[1].Y) // no last point for now - may be closed with Z
+		} else if p.Type == TypeBezier {
+			fmt.Fprintf(buf, "C%f,%f %f,%f %f,%f", p.Pnt[0].X, p.Pnt[0].Y, p.Pnt[1].X, p.Pnt[1].Y, p.Pnt[2].X, p.Pnt[2].Y)
 		}
 		if i == l {
 			fmt.Fprintf(buf, " Z")
-		} else if p.Type == Corner {
-			fmt.Fprintf(buf, " %f,%f ", p.Pt[2][0], p.Pt[2][1]) // last point for corner
+		} else if p.Type == TypeCorner {
+			fmt.Fprintf(buf, " %f,%f ", p.Pnt[2].X, p.Pnt[2].Y) // last point for corner
 		}
 	}
 	return buf.String()
 }
 
-type Segment struct {
-	Type SegType
-	Pt   [3]Point
-}
-
-type Point [2]float64
-
-type Threshold func(color.Color) bool
-
-// Params is a structure to hold tracing parameters
 type Params struct {
-	TurdSize     int        // area of largest path to be ignored
-	TurnPolicy   TurnPolicy // resolves ambiguous turns in path decomposition
-	AlphaMax     float64    // corner threshold
-	OptCurve     bool       // use curve optimization?
-	OptTolerance float64    // curve optimization tolerance
-
-	ThresholdFunc Threshold // function to convert pixels to bits
+	TurdSize     int
+	TurnPolicy   TurnPolicy
+	AlphaMax     float64
+	OptiCurve    bool
+	OptTolerance float64
 }
 
-func ThresholdAplha(c color.Color) bool {
-	_, _, _, a := c.RGBA()
+var Defaults = Params{
+	TurdSize:     2,
+	TurnPolicy:   TurnMinority,
+	AlphaMax:     1.0,
+	OptiCurve:    true,
+	OptTolerance: 0.2,
+}
+
+func Trace(bm *Bitmap, param *Params) ([]Path, error) {
+	if param == nil {
+		param = &Defaults
+	}
+	return bm.toPathList(param)
+}
+
+func ThresholdAlpha(x, y int, cl color.Color) bool {
+	_, _, _, a := cl.RGBA()
 	return a != 0
 }
 
-func Defaults() *Params {
-	out := new(Params)
-	p := C.potrace_param_default()
-	defer C.free(unsafe.Pointer(p))
-	out.TurdSize = int(p.turdsize)
-	out.TurnPolicy = TurnPolicy(p.turnpolicy)
-	out.AlphaMax = float64(p.alphamax)
-	if int(p.opticurve) != 0 {
-		out.OptCurve = true
+func NewBitmapFromImage(img image.Image, threshold func(x, y int, cl color.Color) bool) *Bitmap {
+	if threshold == nil {
+		threshold = ThresholdAlpha
 	}
-	out.OptTolerance = float64(p.opttolerance)
-
-	out.ThresholdFunc = ThresholdAplha
-	return out
-}
-
-func imageToBitmap(img image.Image, th Threshold) []uint {
-	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-	ww := w / wordSize
-	if w%wordSize != 0 {
-		ww++
-	}
-	words := make([]uint, ww*h)
-	for y := 0; y < img.Bounds().Dy(); y++ {
-		for x := 0; x < img.Bounds().Dx(); x++ {
-			if th(img.At(x, y)) {
-				i := y*ww + x/wordSize
-				words[i] = words[i] | (1 << uint(wordSize-1-x%wordSize))
-			}
+	rect := img.Bounds()
+	bm := NewBitmap(rect.Dx(), rect.Dy())
+	for y := 0; y < rect.Dy(); y++ {
+		for x := 0; x < rect.Dx(); x++ {
+			bm.Set(x, y, threshold(x, y, img.At(x, y)))
 		}
 	}
-	return words
-}
-
-func Trace(img image.Image, params *Params) ([]Path, error) {
-	if params == nil {
-		params = Defaults()
-	}
-	data := imageToBitmap(img, params.ThresholdFunc)
-	w, h := img.Bounds().Dx(), img.Bounds().Dy()
-	dy := w / wordSize
-	if w%wordSize != 0 {
-		dy++
-	}
-	par := C.newParams()
-	defer C.free(unsafe.Pointer(par))
-	par.turdsize = C.int(params.TurdSize)
-	par.turnpolicy = C.int(params.TurnPolicy)
-	par.alphamax = C.double(params.AlphaMax)
-	if params.OptCurve {
-		par.opticurve = C.int(1)
-	} else {
-		par.opticurve = C.int(0)
-	}
-	par.opttolerance = C.double(params.OptTolerance)
-
-	bmp := C.newBitmap()
-	defer C.free(unsafe.Pointer(bmp))
-	bmp._map = (*C.potrace_word)(unsafe.Pointer(&data[0]))
-	bmp.w = C.int(w)
-	bmp.h = C.int(h)
-	bmp.dy = C.int(dy)
-
-	st, err := C.potrace_trace(par, bmp)
-	defer C.potrace_state_free(st)
-	if err != nil {
-		return nil, err
-	} else if int(st.status) != 0 {
-		return nil, fmt.Errorf("trace failed")
-	}
-	var out []Path
-	cur := st.plist
-	for cur != nil {
-		var p Path
-		p.Area = int(cur.area)
-		if byte(cur.sign) == byte('+') {
-			p.Sign = +1
-		} else if byte(cur.sign) == byte('-') {
-			p.Sign = -1
-		}
-		// process curve
-		p.Curve = make([]Segment, int(cur.curve.n))
-		for i := range p.Curve {
-			p.Curve[i] = Segment{
-				Type: SegType(*(*C.int)(unsafe.Pointer(uintptr(unsafe.Pointer(cur.curve.tag)) + unsafe.Sizeof(C.int(0))*uintptr(i)))),
-				Pt: [3]Point{
-					pointFromArr(cur.curve.c, i, 0),
-					pointFromArr(cur.curve.c, i, 1),
-					pointFromArr(cur.curve.c, i, 2),
-				},
-			}
-		}
-		out = append(out, p)
-		cur = cur.next
-	}
-	return out, nil
-}
-
-func pointFromArr(c *[3]C.potrace_dpoint_t, i, j int) Point {
-	p := *(*[3]C.potrace_dpoint_t)(unsafe.Pointer(uintptr(unsafe.Pointer(c)) + unsafe.Sizeof([3]C.potrace_dpoint_t{})*uintptr(i)))
-	return Point{float64(p[j].x), float64(p[j].y)}
+	return bm
 }
 
 func WriteSvg(w io.Writer, rect image.Rectangle, paths []Path, color string) error {
