@@ -36,9 +36,8 @@ func ddenom(p0, p2 Point) float64 {
 func cyclic(a, b, c int) bool {
 	if a <= c {
 		return a <= b && b < c
-	} else {
-		return a <= b || b < c
 	}
+	return a <= b || b < c
 }
 
 type sums struct {
@@ -80,19 +79,19 @@ func pointslope(pp *privPath, i, j int) (ctr, dir Point) {
 
 	for j >= n {
 		j -= n
-		r += 1
+		r++
 	}
 	for i >= n {
 		i -= n
-		r -= 1
+		r--
 	}
 	for j < 0 {
 		j += n
-		r -= 1
+		r--
 	}
 	for i < 0 {
 		i += n
-		r += 1
+		r++
 	}
 
 	x := float64(sums[j+1].x - sums[i].x + r*sums[n].x)
@@ -227,8 +226,8 @@ func quadform(Q quadForm, w Point) (sum float64) {
 	return sum
 }
 
-// Preparation: fill in the sum* fields of a path (used for later rapid summing).
-func (pp *privPath) calc_sums() {
+// calcSums is a preparation: fill in the sum* fields of a path (used for later rapid summing).
+func (pp *privPath) calcSums() {
 	pp.Sums = make([]sums, len(pp.Pt)+1)
 	pp.Orig = pp.Pt[0]
 	for i, p := range pp.Pt {
@@ -252,25 +251,25 @@ func (pp *privPath) calc_sums() {
    line through squares i0,...,in iff there exists a straight line
    through i,j,k, for all i0<=i<j<k<=in. (Proof?) */
 
-/* this implementation of calc_lon is O(n^2). It replaces an older
+/* this implementation of calcLon is O(n^2). It replaces an older
    O(n^3) version. A "constraint" means that future points must
    satisfy xprod(constraint[0], cur) >= 0 and xprod(constraint[1],
    cur) <= 0. */
 
-/* Remark for Potrace 1.1: the current implementation of calc_lon is
+/* Remark for Potrace 1.1: the current implementation of calcLon is
    more complex than the implementation found in Potrace 1.0, but it
    is considerably faster. The introduction of the "nc" data structure
    means that we only have to test the constraints for "corner"
-   points. On a typical input file, this speeds up the calc_lon
+   points. On a typical input file, this speeds up the calcLon
    function by a factor of 31.2, thereby decreasing its time share
    within the overall Potrace algorithm from 72.6% to 7.82%, and
    speeding up the overall algorithm by a factor of 3.36. On another
-   input file, calc_lon was sped up by a factor of 6.7, decreasing its
+   input file, calcLon was sped up by a factor of 6.7, decreasing its
    time share from 51.4% to 13.61%, and speeding up the overall
    algorithm by a factor of 1.78. In any case, the savings are
    substantial. */
 
-func (pp *privPath) calc_lon() {
+func (pp *privPath) calcLon() {
 	pt := pp.Pt
 	n := len(pt)
 	var (
@@ -278,13 +277,13 @@ func (pp *privPath) calc_lon() {
 		nc   = make([]int, n) // next corner
 	)
 
-	//		 initialize the nc data structure. Point from each point to the
-	//		 furthest future point to which it is connected by a vertical or
-	//		 horizontal segment. We take advantage of the fact that there is
-	//		 always a direction change at 0 (due to the path decomposition
-	//		 algorithm). But even if this were not so, there is no harm, as
-	//		 in practice, correctness does not depend on the word "furthest"
-	//		 above.
+	// 	 initialize the nc data structure. Point from each point to the
+	// 	 furthest future point to which it is connected by a vertical or
+	// 	 horizontal segment. We take advantage of the fact that there is
+	// 	 always a direction change at 0 (due to the path decomposition
+	// 	 algorithm). But even if this were not so, there is no harm, as
+	// 	 in practice, correctness does not depend on the word "furthest"
+	// 	 above.
 	k := 0
 	for i := n - 1; i >= 0; i-- {
 		if pt[i].X != pt[k].X && pt[i].Y != pt[k].Y {
@@ -296,7 +295,7 @@ func (pp *privPath) calc_lon() {
 	pp.Lon = make([]int, n)
 
 	// determine pivot points: for each i, let pivk[i] be the furthest k
-	//	 such that all j with i<j<k lie on a line connecting i,k.
+	//  such that all j with i<j<k lie on a line connecting i,k.
 
 	var (
 		ct         [4]int
@@ -378,16 +377,16 @@ func (pp *privPath) calc_lon() {
 			}
 		}
 	constraint_viol:
-		//	   k1 was the last "corner" satisfying the current constraint, and
-		//	   k is the first one violating it. We now need to find the last
-		//	   point along k1..k which satisfied the constraint.
+		//    k1 was the last "corner" satisfying the current constraint, and
+		//    k is the first one violating it. We now need to find the last
+		//    point along k1..k which satisfied the constraint.
 		dk.X = sign(pt[k].X - pt[k1].X)
 		dk.Y = sign(pt[k].Y - pt[k1].Y)
 		cur.X = pt[k1].X - pt[i].X
 		cur.Y = pt[k1].Y - pt[i].Y
-		//	   find largest integer j such that xprod(constraint[0], cur+j*dk)
-		//	   >= 0 and xprod(constraint[1], cur+j*dk) <= 0. Use bilinearity
-		//	   of xprod.
+		//    find largest integer j such that xprod(constraint[0], cur+j*dk)
+		//    >= 0 and xprod(constraint[1], cur+j*dk) <= 0. Use bilinearity
+		//    of xprod.
 		a = xprod(constraint[0], cur)
 		b = xprod(constraint[0], dk)
 		c = xprod(constraint[1], cur)
@@ -406,7 +405,7 @@ func (pp *privPath) calc_lon() {
 	} // for i
 
 	// clean up: for each i, let lon[i] be the largest k such that for
-	//	 all i' with i<=i'<k, i'<k<=pivk[i'].
+	//  all i' with i<=i'<k, i'<k<=pivk[i'].
 
 	j = pivk[n-1]
 	pp.Lon[n-1] = j
@@ -529,8 +528,8 @@ func (pp *privPath) bestpolygon() {
 
 	// now find the shortest path with m segments, based on penalty3
 	// note: the outer 2 loops jointly have at most n iterations, thus
-	//	 the worst-case behavior here is quadratic. In practice, it is
-	//	 close to linear since the inner loop tends to be short.
+	//  the worst-case behavior here is quadratic. In practice, it is
+	//  close to linear since the inner loop tends to be short.
 	pen[0] = 0
 	for j = 1; j <= m; j++ {
 		for i = seg1[j]; i <= seg0[j]; i++ {
@@ -557,11 +556,10 @@ func (pp *privPath) bestpolygon() {
 
 // Stage 3: vertex adjustment (Sec. 2.3.1).
 
-//	Adjust vertices of optimal polygon: calculate the intersection of
-//	the two "optimal" line segments, then move it into the unit square
-//	if it lies outside. Return 1 with errno set on error; 0 on
-//	success.
-func (pp *privPath) adjust_vertices() {
+// adjustVertices adjusts vertices of optimal polygon: calculate the intersection of
+// the two "optimal" line segments, then move it into the unit square
+// if it lies outside. Return 1 with errno set on error; 0 on success.
+func (pp *privPath) adjustVertices() {
 	po := pp.Po
 	m := len(po)
 	pt := pp.Pt
@@ -585,9 +583,9 @@ func (pp *privPath) adjust_vertices() {
 		ctr[i], dir[i] = pointslope(pp, po[i], j)
 	}
 
-	//	represent each line segment as a singular quadratic form; the
-	//	distance of a point (x,y) from the line segment will be
-	//	(x,y,1)Q(x,y,1)^t, where Q=q[i].
+	// represent each line segment as a singular quadratic form; the
+	// distance of a point (x,y) from the line segment will be
+	// (x,y,1)Q(x,y,1)^t, where Q=q[i].
 	for i := 0; i < m; i++ {
 		d := dir[i].X*dir[i].X + dir[i].Y*dir[i].Y
 		if d == 0.0 {
@@ -608,10 +606,10 @@ func (pp *privPath) adjust_vertices() {
 		}
 	}
 
-	//	now calculate the "intersections" of consecutive segments.
-	//	Instead of using the actual intersection, we find the point
-	//	within a given unit square which minimizes the square distance to
-	//	the two lines.
+	// now calculate the "intersections" of consecutive segments.
+	// Instead of using the actual intersection, we find the point
+	// within a given unit square which minimizes the square distance to
+	// the two lines.
 	for i := 0; i < m; i++ {
 		var (
 			Q           quadForm
@@ -797,10 +795,9 @@ type opti struct {
 	alpha float64
 }
 
-//	calculate best fit from i+.5 to j+.5.  Assume i<j (cyclically).
-//	Return 0 and set badness and parameters (alpha, beta), if
-//	possible. Return 1 if impossible.
-func opti_penalty(pp *privPath, i, j int, opttolerance float64, convc []int, areac []float64) (res opti, err error) {
+// optiPenalty calculates best fit from i+.5 to j+.5.  Assume i<j (cyclically).
+// Return 0 and set badness and parameters (alpha, beta), if possible. Return 1 if impossible.
+func optiPenalty(pp *privPath, i, j int, opttolerance float64, convc []int, areac []float64) (res opti, err error) {
 	m := len(pp.Curve.segm)
 
 	// check convexity, corner-freeness, and maximum bend < 179 degrees
@@ -849,9 +846,9 @@ func opti_penalty(pp *privPath, i, j int, opttolerance float64, convc []int, are
 		area += areac[m]
 	}
 
-	//	 	 find intersection o of p0p1 and p2p3. Let t,s such that o =
-	//		 interval(t,p0,p1) = interval(s,p3,p2). Let A be the area of the
-	//		 triangle (p0,o,p3).
+	//  	 find intersection o of p0p1 and p2p3. Let t,s such that o =
+	// 	 interval(t,p0,p1) = interval(s,p3,p2). Let A be the area of the
+	// 	 triangle (p0,o,p3).
 
 	A1 := dpara(p0, p1, p2)
 	A2 := dpara(p0, p1, p3)
@@ -947,8 +944,8 @@ func opti_penalty(pp *privPath, i, j int, opttolerance float64, convc []int, are
 	return
 }
 
-//	optimize the path p, replacing sequences of Bezier segments by a
-//	single segment when possible.
+// optimize the path p, replacing sequences of Bezier segments by a
+// single segment when possible.
 func (pp *privPath) opticurve(opttolerance float64) error {
 	m := len(pp.Curve.segm)
 
@@ -997,7 +994,7 @@ func (pp *privPath) opticurve(opttolerance float64) error {
 		leng[j] = leng[j-1] + 1
 
 		for i := j - 2; i >= 0; i-- {
-			o, err := opti_penalty(pp, i, mod(j, m), opttolerance, convc, areac)
+			o, err := optiPenalty(pp, i, mod(j, m), opttolerance, convc, areac)
 			if err != nil {
 				break
 				//return fmt.Errorf("opti: %s", err)
@@ -1045,7 +1042,7 @@ func (pp *privPath) opticurve(opttolerance float64) error {
 	return nil
 }
 
-func process_path(plist []Path, param *Params) error {
+func processPath(plist []Path, param *Params) error {
 	// call downstream function with each path
 	for i := range plist {
 		if err := processOnePath(&plist[i], param); err != nil {
@@ -1056,10 +1053,10 @@ func process_path(plist []Path, param *Params) error {
 }
 
 func processOnePath(p *Path, param *Params) error {
-	p.priv.calc_sums()
-	p.priv.calc_lon()
+	p.priv.calcSums()
+	p.priv.calcLon()
 	p.priv.bestpolygon()
-	p.priv.adjust_vertices()
+	p.priv.adjustVertices()
 	if p.Sign == -1 { // reverse orientation of negative paths
 		reverse(&p.priv.Curve)
 	}

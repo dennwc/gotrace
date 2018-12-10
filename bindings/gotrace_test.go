@@ -3,18 +3,19 @@ package gotraceb
 import (
 	"crypto/sha1"
 	"fmt"
-	gtr "github.com/dennwc/gotrace"
 	"image"
 	"image/color"
 	_ "image/png"
 	"os"
 	"testing"
 	"unsafe"
+
+	gtr "github.com/dennwc/gotrace"
 )
 
 func TestWordSize(t *testing.T) {
 	if uintptr(wordSize) != unsafe.Sizeof(uint(0))*8 {
-		t.Fatalf("%d vs %s", wordSize, unsafe.Sizeof(uint(0))*8)
+		t.Fatalf("%d vs %d", wordSize, unsafe.Sizeof(uint(0))*8)
 	}
 }
 

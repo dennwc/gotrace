@@ -11,12 +11,16 @@ import (
 )
 
 const (
+	// TypeBezier represents Bezier curve segment.
 	TypeBezier = SegmType(1)
+	// TypeCorner represents a corner segment.
 	TypeCorner = SegmType(2)
 )
 
+// SegmType is a type of a path segment.
 type SegmType int
 
+// Supported turn policies.
 const (
 	TurnBlack    = TurnPolicy(0)
 	TurnWhite    = TurnPolicy(1)
@@ -27,17 +31,21 @@ const (
 	TurnRandom   = TurnPolicy(6)
 )
 
+// TurnPolicy is a policy for tracing the bitmap.
 type TurnPolicy int
 
+// Point is a point on a 2D plane.
 type Point struct {
 	X, Y float64
 }
 
+// Segment is a pth segment.
 type Segment struct {
 	Type SegmType
 	Pnt  [3]Point
 }
 
+// Path represents a curve path.
 type Path struct {
 	Area  int
 	Sign  int
@@ -48,6 +56,7 @@ type Path struct {
 	priv *privPath
 }
 
+// ToSvgPath converts the path to an SVG path string.
 func (p Path) ToSvgPath() string {
 	c := p.Curve
 	if len(c) == 0 {
@@ -73,6 +82,7 @@ func (p Path) ToSvgPath() string {
 	return buf.String()
 }
 
+// Params is a set of tracing parameters.
 type Params struct {
 	TurdSize     int
 	TurnPolicy   TurnPolicy
@@ -81,6 +91,7 @@ type Params struct {
 	OptTolerance float64
 }
 
+// Defaults cores default parameters for tracing.
 var Defaults = Params{
 	TurdSize:     2,
 	TurnPolicy:   TurnMinority,
@@ -89,6 +100,8 @@ var Defaults = Params{
 	OptTolerance: 0.2,
 }
 
+// Trace the bitmap using specified parameters for the algorithm.
+// If parameters is nil, defaults will be used.
 func Trace(bm *Bitmap, param *Params) ([]Path, error) {
 	if param == nil {
 		param = &Defaults
@@ -96,12 +109,18 @@ func Trace(bm *Bitmap, param *Params) ([]Path, error) {
 	return bm.toPathList(param)
 }
 
-func ThresholdAlpha(x, y int, cl color.Color) bool {
+// ThresholdFunc is a function that converts a color to a a single bit value.
+type ThresholdFunc func(x, y int, cl color.Color) bool
+
+// ThresholdAlpha is a threshold function that cuts fully transparent parts from the image.
+func ThresholdAlpha(_, _ int, cl color.Color) bool {
 	_, _, _, a := cl.RGBA()
 	return a != 0
 }
 
-func NewBitmapFromImage(img image.Image, threshold func(x, y int, cl color.Color) bool) *Bitmap {
+// NewBitmapFromImage converts an image to a bitmap using a threshold function.
+// If function is not specified, an Alpha channel will be used for the threshold.
+func NewBitmapFromImage(img image.Image, threshold ThresholdFunc) *Bitmap {
 	if threshold == nil {
 		threshold = ThresholdAlpha
 	}
@@ -115,6 +134,8 @@ func NewBitmapFromImage(img image.Image, threshold func(x, y int, cl color.Color
 	return bm
 }
 
+// WriteSvg writes an SVG file with specified paths. Dimensions of an image will be set to rect,
+// and paths will be of a specified color (#rrggbb).
 func WriteSvg(w io.Writer, rect image.Rectangle, paths []Path, color string) error {
 	if color == "" {
 		color = "#000000"

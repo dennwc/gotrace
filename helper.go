@@ -23,17 +23,15 @@ func sign(v int) int {
 func abs(v int) int {
 	if v >= 0 {
 		return v
-	} else {
-		return -v
 	}
+	return -v
 }
 
 func fabs(v float64) float64 {
 	if v >= 0 {
 		return v
-	} else {
-		return -v
 	}
+	return -v
 }
 
 func mod(a, n int) int {
@@ -41,25 +39,22 @@ func mod(a, n int) int {
 		return a % n
 	} else if a >= 0 {
 		return a
-	} else {
-		return n - 1 - (-1-a)%n
 	}
+	return n - 1 - (-1-a)%n
 }
 
 func floordiv(a, n int) int {
 	if a >= 0 {
 		return a / n
-	} else {
-		return -1 - (-1-a)/n
 	}
+	return -1 - (-1-a)/n
 }
 
 func min(a, b int) int {
 	if a < b {
 		return a
-	} else {
-		return b
 	}
+	return b
 }
 
 // range over the straight line segment [a,b] when lambda ranges over [0,1]
