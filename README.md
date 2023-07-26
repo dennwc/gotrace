@@ -1,5 +1,7 @@
 # GoTrace
 
+**WARNING:** This library is **deprecated** in favor of [gotranspile/gotrace](https://github.com/gotranspile/gotrace). It will not receive any updates.
+
 Pure Go implementation of [Potrace](http://potrace.sourceforge.net/potracelib.pdf) vectorization library.
 Supports simple SVG output generation.
 
